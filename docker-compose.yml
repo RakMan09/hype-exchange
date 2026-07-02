@@ -1,0 +1,69 @@
+# Infrastructure for HypeExchange: Kafka (KRaft, single node) + Redis.
+# The auctioneer, streams app, bots, generator and dashboard run on the host
+# (see README "How to run"), matching the project's run commands.
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: hype-redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  kafka:
+    image: apache/kafka:3.8.0
+    container_name: hype-kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      # Two broker listeners: PLAINTEXT (advertised as localhost) for host clients,
+      # INTERNAL (advertised as kafka) for other containers on the compose network.
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,INTERNAL://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,INTERNAL://kafka:29092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,INTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_NUM_PARTITIONS: 6
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server kafka:29092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Pre-creates the firehose + metrics topics so the streams app finds its inputs.
+  kafka-init:
+    image: apache/kafka:3.8.0
+    container_name: hype-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        set -e
+        B=kafka:29092
+        create() { /opt/kafka/bin/kafka-topics.sh --bootstrap-server $$B --create --if-not-exists --partitions 6 --replication-factor 1 --topic "$$1"; }
+        create auction-results
+        create impressions
+        create clicks
+        create invests
+        create conversions
+        create metrics-meme
+        create metrics-bidder
+        create attributed-clicks
+        create metrics-attribution
+        echo "topics ready"
+    restart: "no"
