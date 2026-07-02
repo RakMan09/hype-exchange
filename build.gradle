@@ -1,0 +1,7 @@
+// Root build for the HypeExchange multi-module project.
+// Common configuration shared by all JVM sub-projects.
+subprojects {
+    repositories {
+        mavenCentral()
+    }
+}
