@@ -1,0 +1,54 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: hypeexchange-auctioneer
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      properties:
+        linger.ms: 0
+        acks: 1
+
+hype:
+  kafka:
+    enabled: ${HYPE_KAFKA_ENABLED:true}
+  auction:
+    deadline-ms: 100
+    bidder-timeout-ms: 100
+    type: SECOND_PRICE
+    enforce-budgets: true
+    default-budget: 10000000
+    freq-cap: 5
+    freq-cap-ttl-seconds: 60
+    # Bidder bots started by `python bots/run_bidders.py 8` listen on 9101..9108.
+    bidders:
+      - http://localhost:9101
+      - http://localhost:9102
+      - http://localhost:9103
+      - http://localhost:9104
+      - http://localhost:9105
+      - http://localhost:9106
+      - http://localhost:9107
+      - http://localhost:9108
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+
+logging:
+  level:
+    com.hypeexchange: INFO
