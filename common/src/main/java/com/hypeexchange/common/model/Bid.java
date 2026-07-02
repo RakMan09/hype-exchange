@@ -12,5 +12,5 @@ public record Bid(
         String requestId,
         String bidderId,
         long price,
-        long ts) {
+        long ts) implements EventTimed {
 }

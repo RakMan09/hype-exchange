@@ -13,5 +13,5 @@ public record Click(
         String requestId,
         String memeId,
         String bidderId,
-        long ts) {
+        long ts) implements EventTimed {
 }

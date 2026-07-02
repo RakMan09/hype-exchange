@@ -14,5 +14,5 @@ public record Invest(
         String memeId,
         String bidderId,
         long amount,
-        long ts) {
+        long ts) implements EventTimed {
 }

@@ -15,5 +15,5 @@ public record Impression(
         String memeId,
         String bidderId,
         long price,
-        long ts) {
+        long ts) implements EventTimed {
 }

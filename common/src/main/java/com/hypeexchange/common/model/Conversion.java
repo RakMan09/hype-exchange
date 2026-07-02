@@ -15,5 +15,5 @@ public record Conversion(
         String memeId,
         String bidderId,
         long value,
-        long ts) {
+        long ts) implements EventTimed {
 }

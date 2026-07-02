@@ -15,5 +15,5 @@ public record BidRequest(
         String memeId,
         String category,
         long floorPrice,
-        long ts) {
+        long ts) implements EventTimed {
 }

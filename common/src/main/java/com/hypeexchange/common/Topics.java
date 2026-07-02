@@ -26,4 +26,10 @@ public final class Topics {
 
     /** Output: per-bidder windowed metrics produced by the streams app. */
     public static final String METRICS_BIDDER = "metrics-bidder";
+
+    /** Output: impressions joined to their clicks (event-time attribution). */
+    public static final String ATTRIBUTED_CLICKS = "attributed-clicks";
+
+    /** Output: per-meme windowed impression/click/CTR attribution metrics. */
+    public static final String METRICS_ATTRIBUTION = "metrics-attribution";
 }

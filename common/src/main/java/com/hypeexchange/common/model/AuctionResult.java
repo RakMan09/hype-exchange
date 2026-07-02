@@ -26,7 +26,7 @@ public record AuctionResult(
         boolean filled,
         AuctionType auctionType,
         int droppedBids,
-        long ts) {
+        long ts) implements EventTimed {
 
     public static AuctionResult unfilled(String requestId, String memeId, int participants,
                                          long latencyMs, AuctionType type, int droppedBids, long ts) {
