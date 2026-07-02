@@ -1,0 +1,66 @@
+:root {
+  --bg: #0a0f1e;
+  --panel: #111a2e;
+  --border: #243049;
+  --text: #e6edf7;
+  --muted: #8aa0c6;
+  --accent: #7b6cf6;
+  --ok: #3ddc97;
+  --warn: #f2545b;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: radial-gradient(1200px 600px at 20% -10%, #16203a 0%, var(--bg) 55%);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.app { max-width: 1280px; margin: 0 auto; padding: 24px; }
+
+header {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 20px;
+}
+h1 { font-size: 26px; margin: 0; letter-spacing: -0.5px; }
+h1 .floor { color: var(--muted); font-weight: 400; font-size: 15px; margin-left: 8px; }
+
+.conn { font-size: 12px; padding: 4px 10px; border-radius: 999px; text-transform: uppercase; letter-spacing: 1px; }
+.conn.on { background: rgba(61, 220, 151, 0.15); color: var(--ok); }
+.conn.off { background: rgba(242, 84, 91, 0.15); color: var(--warn); }
+
+.stats {
+  display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 20px;
+}
+.stat {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px 16px;
+}
+.stat-label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; }
+.stat-value { font-size: 26px; font-weight: 700; margin-top: 6px; }
+.stat-sub { color: var(--muted); font-size: 11px; margin-top: 2px; }
+.stat.ok .stat-value { color: var(--ok); }
+.stat.warn .stat-value { color: var(--warn); }
+
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.card {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 14px; padding: 16px;
+}
+.card h2 { font-size: 15px; margin: 0 0 12px; font-weight: 600; }
+.card h2 .muted { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 6px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+th { color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; }
+td.up { color: var(--ok); }
+.muted { color: var(--muted); }
+
+footer { color: var(--muted); font-size: 12px; text-align: center; margin-top: 24px; }
+
+@media (max-width: 900px) {
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  .grid { grid-template-columns: 1fr; }
+}
