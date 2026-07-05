@@ -36,6 +36,12 @@ export function startSimulator(onSnapshot, intervalMs = 1000) {
 
   let totalAuctions = 0;
   let filledAuctions = 0;
+  let totalSpend = 0;
+  let sumParticipants = 0;
+  let sumResponses = 0;
+  let sumDropped = 0;
+  let underDeadline = 0;
+  const DEADLINE_MS = 100;
 
   const tick = () => {
     // Sustained throughput with mild variation.
@@ -46,6 +52,17 @@ export function startSimulator(onSnapshot, intervalMs = 1000) {
 
     totalAuctions += batch;
     filledAuctions += filledThisTick;
+
+    // Bidder participation: ~6 of 8 respond in time, a few dropped by the deadline.
+    const bidders = 8;
+    for (let i = 0; i < batch; i++) {
+      const dropped = Math.min(bidders, Math.max(0, Math.round(0.7 + Math.abs(randn()) * 0.9)));
+      sumDropped += dropped;
+      sumParticipants += bidders - dropped;
+      sumResponses += bidders;
+      // ~98.5% resolve under the deadline.
+      if (Math.random() < 0.985) underDeadline += 1;
+    }
 
     for (let i = 0; i < filledThisTick; i++) {
       // Weight wins toward the hot memes.
@@ -61,6 +78,7 @@ export function startSimulator(onSnapshot, intervalMs = 1000) {
         b.budget -= price;
         b.spend += price;
         b.wins += 1;
+        totalSpend += price;
         const m = memeState.get(meme);
         m.wins += 1;
         m.spend += price;
@@ -70,6 +88,7 @@ export function startSimulator(onSnapshot, intervalMs = 1000) {
     // Latency: fast median, tail pressing against the 100ms deadline but under it.
     const p50 = Math.round(clamp(2 + Math.abs(randn()) * 2, 1, 12));
     const p99 = Math.round(clamp(74 + randn() * 8, 40, 99));
+    const p95 = Math.round(clamp((p50 + p99) / 2 + randn() * 4, p50, p99));
     const max = Math.round(clamp(p99 + Math.abs(randn()) * 6, p99, 130));
 
     const topBidders = [...bidderState.entries()]
@@ -99,8 +118,15 @@ export function startSimulator(onSnapshot, intervalMs = 1000) {
       fillRate: filledAuctions / Math.max(1, totalAuctions),
       auctionsPerSec: perSec,
       p50LatencyMs: p50,
+      p95LatencyMs: p95,
       p99LatencyMs: p99,
       maxLatencyMs: max,
+      deadlineMs: DEADLINE_MS,
+      deadlineComplianceRate: underDeadline / Math.max(1, totalAuctions),
+      totalSpend,
+      avgClearingPrice: filledAuctions === 0 ? 0 : Math.round(totalSpend / filledAuctions),
+      avgBidsPerAuction: sumParticipants / Math.max(1, totalAuctions),
+      stragglerDropRate: sumResponses === 0 ? 0 : sumDropped / sumResponses,
       topBidders,
       topMovers,
     });

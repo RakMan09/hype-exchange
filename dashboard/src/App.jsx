@@ -78,16 +78,27 @@ export default function App() {
 
       <section className="stats">
         <Stat label="Auctions / sec" value={Math.round(data?.auctionsPerSec ?? 0)} />
+        <Stat label="Total auctions" value={(data?.totalAuctions ?? 0).toLocaleString()} />
         <Stat label="Fill rate" value={pct(data?.fillRate ?? 0)} />
+        <Stat
+          label="Deadline SLA"
+          value={pct(data?.deadlineComplianceRate ?? 0)}
+          sub={`under ${data?.deadlineMs ?? DEADLINE_MS} ms`}
+          tone={(data?.deadlineComplianceRate ?? 1) >= 0.95 ? 'ok' : 'warn'}
+        />
         <Stat label="p50 latency" value={`${data?.p50LatencyMs ?? 0} ms`} />
+        <Stat label="p95 latency" value={`${data?.p95LatencyMs ?? 0} ms`} />
         <Stat
           label="p99 latency"
           value={`${data?.p99LatencyMs ?? 0} ms`}
-          sub={`deadline ${DEADLINE_MS} ms`}
-          tone={(data?.p99LatencyMs ?? 0) > DEADLINE_MS ? 'warn' : 'ok'}
+          sub={`deadline ${data?.deadlineMs ?? DEADLINE_MS} ms`}
+          tone={(data?.p99LatencyMs ?? 0) > (data?.deadlineMs ?? DEADLINE_MS) ? 'warn' : 'ok'}
         />
-        <Stat label="Total auctions" value={(data?.totalAuctions ?? 0).toLocaleString()} />
         <Stat label="Max latency" value={`${data?.maxLatencyMs ?? 0} ms`} />
+        <Stat label="Total cleared" value={money(data?.totalSpend ?? 0)} />
+        <Stat label="Avg clearing (eCPM)" value={money(data?.avgClearingPrice ?? 0)} />
+        <Stat label="Avg bids / auction" value={(data?.avgBidsPerAuction ?? 0).toFixed(1)} />
+        <Stat label="Straggler drop rate" value={pct(data?.stragglerDropRate ?? 0)} />
       </section>
 
       <section className="grid">
