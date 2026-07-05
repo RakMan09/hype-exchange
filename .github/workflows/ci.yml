@@ -1,0 +1,56 @@
+name: CI
+
+# Builds every module and runs the full test suite on each push / PR. The badge
+# this produces is clickable proof that the auction, deadline, budget-concurrency
+# and streaming-attribution tests pass on GitHub's runners (not just locally).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build + test (all modules)
+        run: ./gradlew build --no-daemon
+
+      - name: Test report summary
+        if: always()
+        run: |
+          {
+            echo "## Test results"
+            echo ""
+            total=0; failed=0; skipped=0
+            for f in $(find . -path '*/build/test-results/test/*.xml'); do
+              t=$(grep -o 'tests="[0-9]*"' "$f" | head -1 | grep -o '[0-9]*')
+              fl=$(grep -o 'failures="[0-9]*"' "$f" | head -1 | grep -o '[0-9]*')
+              er=$(grep -o 'errors="[0-9]*"' "$f" | head -1 | grep -o '[0-9]*')
+              sk=$(grep -o 'skipped="[0-9]*"' "$f" | head -1 | grep -o '[0-9]*')
+              total=$((total + t)); failed=$((failed + fl + er)); skipped=$((skipped + sk))
+            done
+            echo "- Tests run: **$total**"
+            echo "- Failures/errors: **$failed**"
+            echo "- Skipped: **$skipped**"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: '**/build/reports/tests/test/**'
+          if-no-files-found: ignore

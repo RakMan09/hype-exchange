@@ -1,5 +1,9 @@
 # HypeExchange
 
+[![CI](https://github.com/RakMan09/hype-exchange/actions/workflows/ci.yml/badge.svg)](https://github.com/RakMan09/hype-exchange/actions/workflows/ci.yml)
+[![Load test](https://github.com/RakMan09/hype-exchange/actions/workflows/perf.yml/badge.svg)](https://github.com/RakMan09/hype-exchange/actions/workflows/perf.yml)
+[![Deploy demo dashboard](https://github.com/RakMan09/hype-exchange/actions/workflows/pages.yml/badge.svg)](https://github.com/RakMan09/hype-exchange/actions/workflows/pages.yml)
+
 A real-time meme / hype bidding pit — a live exchange where bots bid on trending
 memes in **sealed-bid auctions** that must resolve within a hard deadline (100 ms).
 Mechanically it is a **real-time bidding (RTB) ad exchange**: a bid request fans out
@@ -8,6 +12,19 @@ of events flows into windowed streaming analytics powering a live dashboard.
 
 This repository implements the project specified in
 [`P3-HypeExchange.md`](P3-HypeExchange.md).
+
+**Live demo:** https://rakman09.github.io/hype-exchange/ (static dashboard with
+simulated data — the real backend is proven by the tests + CI below).
+
+## Try it in one command
+
+```bash
+docker compose --profile full up --build   # builds + runs the entire stack
+# then open http://localhost:8088
+```
+
+This starts Kafka, Redis, the auctioneer, the streams app, 8 bidder bots, the traffic
+generator, and the dashboard together — real auctions clearing end to end.
 
 ## What it demonstrates
 
@@ -20,6 +37,34 @@ This repository implements the project specified in
   impression→click attribution.
 - **Latency engineering** — parallelized calls, per-call timeouts, an aggregate
   deadline, and a tuned connection pool to keep p99 under the deadline.
+
+## Verification — how to know it actually works
+
+Every non-trivial claim in this project is backed by evidence you can check yourself,
+without taking anyone's word for it:
+
+- **CI runs the full test suite on every push** — click the CI badge above to see the
+  26 tests pass on GitHub's runners (not just locally).
+- **The load test runs in CI** and publishes measured throughput + p99 latency to the
+  workflow run summary and as a downloadable artifact (Load test badge above / run it
+  on demand via *Actions → Load test → Run workflow*).
+- **You can run the whole thing** in one command (`docker compose --profile full up`)
+  or see the always-on [live dashboard](https://rakman09.github.io/hype-exchange/).
+
+Each hard guarantee maps to a specific, named test:
+
+| Claim | Proven by |
+| --- | --- |
+| A slow bidder can't stall the 100 ms auction; it's dropped and the auction still returns on time | [`WebClientBidderGatewayDeadlineTest`](auctioneer/src/test/java/com/hypeexchange/auctioneer/bidder/WebClientBidderGatewayDeadlineTest.java) (starts a real slow HTTP bidder) |
+| Concurrent wins never overspend a budget | [`RedisBudgetServiceTest`](auctioneer/src/test/java/com/hypeexchange/auctioneer/budget/RedisBudgetServiceTest.java) — 50 simultaneous wins, exactly 10 succeed, balance never negative |
+| Per-meme frequency caps hold under concurrency | same test — 20 concurrent wins, exactly 3 allowed |
+| First / second-price clearing, ties, floors, all-timeout | [`ClearingTest`](auctioneer/src/test/java/com/hypeexchange/auctioneer/auction/ClearingTest.java) |
+| Budget rejection falls through to the next-best bidder | [`AuctionServiceTest`](auctioneer/src/test/java/com/hypeexchange/auctioneer/auction/AuctionServiceTest.java) |
+| Late / out-of-order clicks are attributed to the impression's window | [`AnalyticsTopologyTest`](streams/src/test/java/com/hypeexchange/streams/AnalyticsTopologyTest.java) — replays clicks before their impressions |
+
+```bash
+./gradlew test        # run all of the above locally
+```
 
 ## Architecture
 
@@ -60,6 +105,10 @@ installed.
 
 ## How to run
 
+The fastest path is the one-command Docker demo shown above
+(`docker compose --profile full up --build`, then open http://localhost:8088). To run
+the pieces individually during development:
+
 ```bash
 # 1. Infrastructure: Kafka + Redis (also pre-creates the topics)
 docker compose up -d
@@ -92,6 +141,19 @@ The auctioneer can run standalone (no broker, no budgets) for a quick look:
 python bots/run_bidders.py 6
 python gen/firehose.py --rate 150 --duration 10
 curl -N http://localhost:8080/stream/metrics    # live SSE metrics
+```
+
+### Dashboard demo mode (no backend)
+
+The dashboard can render a live-looking view from a **client-side simulator** when no
+backend is reachable — this is what powers the static
+[GitHub Pages demo](https://rakman09.github.io/hype-exchange/). It is clearly labelled
+"simulated demo" in the UI.
+
+```bash
+# force simulated data locally:
+VITE_DEMO=true npm --prefix dashboard run dev
+# or append ?demo=1 to the URL. Append ?live=1 to force the real SSE backend.
 ```
 
 ## HTTP API
@@ -166,6 +228,9 @@ deterministic replay (including out-of-order clicks) in
 - Streaming: window aggregates + attribution match hand-computed results, including
   out-of-order events (`TopologyTestDriver`, no broker required).
 
+All tests run without Docker (embedded Redis, `TopologyTestDriver`) and execute in CI
+on every push — see the CI badge at the top.
+
 ## Benchmarking
 
 `load/auctions.js` drives auctions through the auctioneer at a target rate and asserts
@@ -177,6 +242,11 @@ k6 run -e RATE=5000 -e DURATION=60s load/auctions.js
 
 Thresholds: `http_req_duration p(99) < 100 ms`, `p(95) < 90 ms`, and a stable fill
 rate. Reported metrics include sustained auctions/sec and p99 decision latency.
+
+This load test also runs in CI (the **Load test** workflow), which starts the
+auctioneer + bidder bots on a GitHub runner, runs k6, and publishes the measured
+throughput and p99 to the run summary + a downloadable `summary.json` artifact. Run it
+on demand via *Actions → Load test → Run workflow*.
 
 ## Configuration (auctioneer)
 

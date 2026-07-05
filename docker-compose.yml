@@ -1,6 +1,11 @@
-# Infrastructure for HypeExchange: Kafka (KRaft, single node) + Redis.
-# The auctioneer, streams app, bots, generator and dashboard run on the host
-# (see README "How to run"), matching the project's run commands.
+# HypeExchange stack.
+#
+#   docker compose up -d                 # infrastructure only (Kafka + Redis)
+#   docker compose --profile full up     # ONE-COMMAND FULL DEMO: everything, then
+#                                        # open http://localhost:8088
+#
+# Infra services (kafka, redis, kafka-init) have no profile so they always start.
+# The application services are gated behind the "full" profile.
 
 services:
   redis:
@@ -67,3 +72,77 @@ services:
         create metrics-attribution
         echo "topics ready"
     restart: "no"
+
+  # ---- application services (only with `--profile full`) ----
+
+  auctioneer:
+    profiles: ["full"]
+    build:
+      context: .
+      target: auctioneer
+    container_name: hype-auctioneer
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    environment:
+      KAFKA_BOOTSTRAP: kafka:29092
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      # Point the fan-out at the bidder bots running in the `bots` container.
+      SPRING_APPLICATION_JSON: >-
+        {"hype":{"auction":{"bidders":[
+        "http://bots:9101","http://bots:9102","http://bots:9103","http://bots:9104",
+        "http://bots:9105","http://bots:9106","http://bots:9107","http://bots:9108"]}}}
+    ports:
+      - "8080:8080"
+
+  streams:
+    profiles: ["full"]
+    build:
+      context: .
+      target: streams
+    container_name: hype-streams
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    environment:
+      KAFKA_BOOTSTRAP: kafka:29092
+
+  bots:
+    profiles: ["full"]
+    build:
+      context: .
+      dockerfile: docker/tools.Dockerfile
+    container_name: hype-bots
+    command: ["python", "bots/run_bidders.py", "8", "--slow-probability", "0.05"]
+
+  generator:
+    profiles: ["full"]
+    build:
+      context: .
+      dockerfile: docker/tools.Dockerfile
+    container_name: hype-generator
+    depends_on:
+      auctioneer:
+        condition: service_started
+      bots:
+        condition: service_started
+    command: ["python", "gen/firehose.py", "--url", "http://auctioneer:8080/auctions", "--rate", "150", "--duration", "0"]
+
+  dashboard:
+    profiles: ["full"]
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    container_name: hype-dashboard
+    depends_on:
+      auctioneer:
+        condition: service_started
+    ports:
+      - "8088:80"

@@ -1,6 +1,7 @@
 import http from 'k6/http';
 import { check } from 'k6';
 import { Rate, Trend } from 'k6/metrics';
+import { textSummary } from 'https://jslib.k6.io/k6-summary/0.0.2/index.js';
 
 // HypeExchange load test: drive auctions through the auctioneer and assert the
 // deadline holds under load (p99 decision latency below the deadline) with a
@@ -22,6 +23,8 @@ const CATEGORIES = ['meme', 'sound', 'creator', 'dance'];
 const FLOORS = [100, 200, 300, 500];
 
 export const options = {
+  // Ensure p99 is present in the exported summary (k6 omits it by default).
+  summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(90)', 'p(95)', 'p(99)'],
   scenarios: {
     auctions: {
       executor: 'constant-arrival-rate',
@@ -70,4 +73,13 @@ export default function () {
       // ignore parse errors
     }
   }
+}
+
+// Emit both a human-readable console summary and a machine-readable summary.json
+// (consumed by the perf CI workflow to publish p99 / throughput numbers).
+export function handleSummary(data) {
+  return {
+    'summary.json': JSON.stringify(data, null, 2),
+    stdout: '\n' + textSummary(data, { indent: '  ', enableColors: true }) + '\n',
+  };
 }

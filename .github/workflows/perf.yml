@@ -1,0 +1,125 @@
+name: Load test
+
+# Runs the k6 load test against the standalone auctioneer (with real bidder bots)
+# and publishes the measured p99 decision latency and throughput to the run summary
+# and as a downloadable artifact. This turns the performance claims into
+# reproducible, dated numbers anyone can inspect.
+#
+# Note: GitHub-hosted runners are shared 2-vCPU machines, so absolute numbers are
+# conservative vs. dedicated hardware. Threshold breaches do not fail the job; the
+# point is the reproducible measurement.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'auctioneer/**'
+      - 'bots/**'
+      - 'load/**'
+      - '.github/workflows/perf.yml'
+  workflow_dispatch:
+    inputs:
+      rate:
+        description: 'Target auctions/sec'
+        default: '500'
+      duration:
+        description: 'Test duration'
+        default: '30s'
+
+jobs:
+  loadtest:
+    runs-on: ubuntu-latest
+    env:
+      RATE: ${{ github.event.inputs.rate || '500' }}
+      DURATION: ${{ github.event.inputs.duration || '30s' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build auctioneer jar
+        run: ./gradlew :auctioneer:bootJar --no-daemon
+
+      - name: Install k6
+        run: |
+          K6_VERSION=v0.53.0
+          curl -sSL "https://github.com/grafana/k6/releases/download/${K6_VERSION}/k6-${K6_VERSION}-linux-amd64.tar.gz" | tar xz
+          sudo mv k6-*/k6 /usr/local/bin/k6
+          k6 version
+
+      - name: Start bidder bots
+        run: |
+          pip install -r bots/requirements.txt
+          # No injected slowness here: straggler-dropping is proven by the deadline
+          # unit test; this job measures throughput + p99 decision latency cleanly.
+          nohup python bots/run_bidders.py 6 --slow-probability 0 > bidders.log 2>&1 &
+          # give uvicorn workers a moment to bind
+          sleep 5
+
+      - name: Start auctioneer (standalone, no Kafka/Redis)
+        run: |
+          nohup java -jar auctioneer/build/libs/auctioneer-0.1.0.jar \
+            --hype.kafka.enabled=false \
+            --hype.auction.enforce-budgets=false \
+            > auctioneer.log 2>&1 &
+          echo "waiting for auctioneer to accept auctions..."
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:8080/auctions \
+              -H 'Content-Type: application/json' \
+              -d '{"memeId":"warmup","category":"meme","floorPrice":100}' || true)
+            if [ "$code" = "200" ]; then echo "auctioneer ready"; break; fi
+            sleep 2
+          done
+
+      - name: Run k6 load test
+        continue-on-error: true
+        run: k6 run -e URL=http://localhost:8080/auctions -e RATE=$RATE -e DURATION=$DURATION load/auctions.js
+
+      - name: Publish results
+        if: always()
+        run: |
+          if [ ! -f summary.json ]; then
+            echo "No summary.json produced (load test did not complete)." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          get() { jq -r "$1 // empty" summary.json; }
+          rps=$(get '.metrics.http_reqs.values.rate')
+          p95=$(get '.metrics.http_req_duration.values["p(95)"]')
+          p99=$(get '.metrics.http_req_duration.values["p(99)"]')
+          d_p95=$(get '.metrics.decision_latency_ms.values["p(95)"]')
+          d_p99=$(get '.metrics.decision_latency_ms.values["p(99)"]')
+          fill=$(get '.metrics.filled_rate.values.rate')
+          {
+            echo "## Load test results"
+            echo ""
+            echo "Target: ${RATE} auctions/sec for ${DURATION} on a shared GitHub runner."
+            echo ""
+            echo "| Metric | Value |"
+            echo "| --- | --- |"
+            printf "| Throughput (req/s) | %.0f |\n" "${rps:-0}"
+            printf "| HTTP p95 | %.1f ms |\n" "${p95:-0}"
+            printf "| HTTP p99 | %.1f ms |\n" "${p99:-0}"
+            printf "| Auction decision latency p95 | %.1f ms |\n" "${d_p95:-0}"
+            printf "| Auction decision latency p99 (deadline 100ms) | %.1f ms |\n" "${d_p99:-0}"
+            printf "| Fill rate | %.1f%% |\n" "$(awk "BEGIN{print ${fill:-0}*100}")"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload k6 summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-summary
+          path: summary.json
+          if-no-files-found: ignore

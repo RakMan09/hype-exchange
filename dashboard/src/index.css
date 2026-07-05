@@ -27,9 +27,11 @@ header {
 h1 { font-size: 26px; margin: 0; letter-spacing: -0.5px; }
 h1 .floor { color: var(--muted); font-weight: 400; font-size: 15px; margin-left: 8px; }
 
+.badges { display: flex; gap: 8px; align-items: center; }
 .conn { font-size: 12px; padding: 4px 10px; border-radius: 999px; text-transform: uppercase; letter-spacing: 1px; }
 .conn.on { background: rgba(61, 220, 151, 0.15); color: var(--ok); }
 .conn.off { background: rgba(242, 84, 91, 0.15); color: var(--warn); }
+.conn.sim { background: rgba(246, 196, 69, 0.15); color: var(--warn); color: #f6c445; cursor: help; }
 
 .stats {
   display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 20px;

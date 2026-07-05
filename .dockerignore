@@ -1,0 +1,8 @@
+.git
+**/build
+**/.gradle
+**/node_modules
+dashboard/dist
+**/__pycache__
+*.log
+summary.json
