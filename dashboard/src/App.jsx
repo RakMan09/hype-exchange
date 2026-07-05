@@ -59,6 +59,23 @@ export default function App() {
         </div>
       </header>
 
+      <section className="about">
+        <p>
+          <strong>HypeExchange</strong> is a real-time bidding exchange for trending
+          memes — the same engineering as an online ad auction. The moment a meme
+          starts trending, an auction fans out to competing <em>bidder bots</em> that
+          must respond within a hard <strong>100&nbsp;ms deadline</strong>; late bids
+          are dropped, the winner is charged (second-price), and their budget is
+          debited atomically.
+        </p>
+        <p className="about-sub">
+          This board is the live trading floor: how fast auctions clear
+          (<em>p50 / p99 latency</em> vs. the 100&nbsp;ms deadline), the
+          <em> fill rate</em> and throughput, which memes are <em>mooning</em>, and how
+          each bidder is spending.
+        </p>
+      </section>
+
       <section className="stats">
         <Stat label="Auctions / sec" value={Math.round(data?.auctionsPerSec ?? 0)} />
         <Stat label="Fill rate" value={pct(data?.fillRate ?? 0)} />
