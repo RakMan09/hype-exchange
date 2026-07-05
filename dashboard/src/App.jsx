@@ -3,7 +3,7 @@ import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid, ReferenceLine,
 } from 'recharts';
-import { useEventSource } from './useEventSource.js';
+import { useMetrics } from './useMetrics.js';
 
 const DEADLINE_MS = 100;
 const HISTORY = 60;
@@ -22,7 +22,7 @@ function Stat({ label, value, sub, tone }) {
 }
 
 export default function App() {
-  const { data, connected } = useEventSource('/stream/metrics');
+  const { data, connected, simulated } = useMetrics('/stream/metrics');
   const [history, setHistory] = useState([]);
   const lastTs = useRef(0);
 
@@ -47,9 +47,16 @@ export default function App() {
     <div className="app">
       <header>
         <h1>HypeExchange <span className="floor">live trading floor</span></h1>
-        <span className={`conn ${connected ? 'on' : 'off'}`}>
-          {connected ? 'live' : 'disconnected'}
-        </span>
+        <div className="badges">
+          {simulated && (
+            <span className="conn sim" title="No backend connected — showing simulated data. The real backend is proven by the test suite and CI.">
+              simulated demo
+            </span>
+          )}
+          <span className={`conn ${connected ? 'on' : 'off'}`}>
+            {connected ? 'live' : 'disconnected'}
+          </span>
+        </div>
       </header>
 
       <section className="stats">
@@ -141,7 +148,10 @@ export default function App() {
       </section>
 
       <footer>
-        HypeExchange · deadline-bounded RTB auctions · metrics via SSE from the auctioneer
+        HypeExchange · deadline-bounded RTB auctions ·{' '}
+        {simulated
+          ? 'simulated data for this static demo — see the repo tests & CI for the real backend'
+          : 'metrics via SSE from the auctioneer'}
       </footer>
     </div>
   );
