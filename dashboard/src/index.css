@@ -33,6 +33,15 @@ h1 .floor { color: var(--muted); font-weight: 400; font-size: 15px; margin-left:
 .conn.off { background: rgba(242, 84, 91, 0.15); color: var(--warn); }
 .conn.sim { background: rgba(246, 196, 69, 0.15); color: var(--warn); color: #f6c445; cursor: help; }
 
+.about {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px 18px; margin-bottom: 20px;
+}
+.about p { margin: 0; font-size: 14px; line-height: 1.55; color: var(--text); }
+.about .about-sub { margin-top: 8px; color: var(--muted); }
+.about strong { color: var(--text); }
+.about em { color: #4cc9f0; font-style: normal; }
+
 .stats {
   display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 20px;
 }
