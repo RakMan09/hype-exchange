@@ -12,8 +12,15 @@ public record MetricsSnapshot(
         double fillRate,
         double auctionsPerSec,
         long p50LatencyMs,
+        long p95LatencyMs,
         long p99LatencyMs,
         long maxLatencyMs,
+        long deadlineMs,
+        double deadlineComplianceRate,
+        long totalSpend,
+        long avgClearingPrice,
+        double avgBidsPerAuction,
+        double stragglerDropRate,
         List<BidderSpend> topBidders,
         List<MemeMovement> topMovers) {
 

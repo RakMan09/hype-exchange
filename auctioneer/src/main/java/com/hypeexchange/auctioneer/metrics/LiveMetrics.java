@@ -1,6 +1,7 @@
 package com.hypeexchange.auctioneer.metrics;
 
 import com.hypeexchange.auctioneer.budget.BudgetService;
+import com.hypeexchange.auctioneer.config.AuctionProperties;
 import com.hypeexchange.common.model.AuctionResult;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
@@ -22,9 +23,14 @@ import java.util.concurrent.atomic.LongAdder;
 public class LiveMetrics {
 
     private final BudgetService budgetService;
+    private final long deadlineMs;
 
     private final AtomicLong total = new AtomicLong();
     private final AtomicLong filled = new AtomicLong();
+    private final AtomicLong totalSpend = new AtomicLong();
+    private final AtomicLong sumParticipants = new AtomicLong();
+    private final AtomicLong sumDropped = new AtomicLong();
+    private final AtomicLong underDeadline = new AtomicLong();
     private final LatencyReservoir latency = new LatencyReservoir(8192);
 
     private final Map<String, LongAdder> bidderSpend = new ConcurrentHashMap<>();
@@ -36,16 +42,23 @@ public class LiveMetrics {
     private volatile long lastSnapshotCount = 0;
     private volatile long lastSnapshotTs = System.currentTimeMillis();
 
-    public LiveMetrics(BudgetService budgetService) {
+    public LiveMetrics(BudgetService budgetService, AuctionProperties props) {
         this.budgetService = budgetService;
+        this.deadlineMs = props.getDeadlineMs();
     }
 
     /** Record a completed auction (called on every auction, filled or not). */
     public void record(AuctionResult result) {
         total.incrementAndGet();
         latency.record(result.latencyMs());
+        sumParticipants.addAndGet(result.participants());
+        sumDropped.addAndGet(result.droppedBids());
+        if (result.latencyMs() <= deadlineMs) {
+            underDeadline.incrementAndGet();
+        }
         if (result.filled()) {
             filled.incrementAndGet();
+            totalSpend.addAndGet(result.clearingPrice());
             bidderSpend.computeIfAbsent(result.winnerId(), k -> new LongAdder())
                     .add(result.clearingPrice());
             bidderWins.computeIfAbsent(result.winnerId(), k -> new LongAdder()).increment();
@@ -91,8 +104,18 @@ public class LiveMetrics {
 
         double fillRate = totalNow == 0 ? 0.0 : (double) filledNow / totalNow;
         long p50 = latency.percentile(0.50);
+        long p95 = latency.percentile(0.95);
         long p99 = latency.percentile(0.99);
         long max = latency.max();
+
+        long spendNow = totalSpend.get();
+        long participantsNow = sumParticipants.get();
+        long droppedNow = sumDropped.get();
+        double complianceRate = totalNow == 0 ? 1.0 : (double) underDeadline.get() / totalNow;
+        long avgClearing = filledNow == 0 ? 0 : spendNow / filledNow;
+        double avgBids = totalNow == 0 ? 0.0 : (double) participantsNow / totalNow;
+        long responded = participantsNow + droppedNow;
+        double dropRate = responded == 0 ? 0.0 : (double) droppedNow / responded;
 
         return Flux.fromIterable(topBidderEntries)
                 .flatMap(e -> budgetService.remainingBudget(e.getKey())
@@ -101,6 +124,7 @@ public class LiveMetrics {
                                 bidderWins.getOrDefault(e.getKey(), new LongAdder()).sum(), rem)))
                 .collectList()
                 .map(bidders -> new MetricsSnapshot(now, totalNow, filledNow, fillRate, perSec,
-                        p50, p99, max, bidders, movers));
+                        p50, p95, p99, max, deadlineMs, complianceRate, spendNow, avgClearing,
+                        avgBids, dropRate, bidders, movers));
     }
 }

@@ -84,7 +84,7 @@ class AuctionServiceTest {
 
     private AuctionService service(BidderGateway gateway, BudgetService budget,
                                   EventPublisher publisher, AuctionProperties props) {
-        LiveMetrics metrics = new LiveMetrics(budget);
+        LiveMetrics metrics = new LiveMetrics(budget, props);
         FunnelSimulator funnel = new FunnelSimulator(publisher);
         return new AuctionService(gateway, budget, publisher, funnel, metrics,
                 new AuctionResultStream(), props);
